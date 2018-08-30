@@ -99,7 +99,7 @@ def compress(input):
     Returns compressed output as a string
 
     """
-    return "import zlib,base64,marshal;exec(marshal.loads(zlib.decompress(base64.b64decode({}))))".format(repr(base64.b64encode(zlib.compress(marshal.dumps(compile(input, '', 'exec')), 9))))
+    return "import zlib,base64,marshal;exec(eval(marshal.loads(zlib.decompress(base64.b64decode({})))))".format(repr(base64.b64encode(zlib.compress(marshal.dumps(compile(input, '', 'exec')), 9))))
 
 def obfuscate(input):
     """ 
@@ -117,7 +117,7 @@ def obfuscate(input):
     temp.file.write(input)
     temp.file.close()
     name = os.path.join(tempfile.gettempdir(), temp.name)
-    obfs = subprocess.Popen('pyminifier -o {} --obfuscate-classes --obfuscate-functions --obfuscate-variables --obfuscate-builtins --replacement-length=1 {}'.format(name, name), 0, None, subprocess.PIPE, subprocess.PIPE, subprocess.PIPE, shell=True)
+    obfs = subprocess.Popen('pyminifier -o {} --obfuscate-classes --obfuscate-variables --replacement-length=1 {}'.format(name, name), 0, None, subprocess.PIPE, subprocess.PIPE, subprocess.PIPE, shell=True)
     obfs.wait()
     output = open(name, 'r').read().replace('# Created by pyminifier (https://github.com/liftoff/pyminifier)', '')
     os.remove(name)
@@ -155,10 +155,10 @@ def main(function, *args, **kwargs):
     options = ', '.join(args) + str(', '.join(str("{}={}".format(k, v) if bool(v.count('{') > 0 and v.count('{') > 0) else "{}='{}'".format(k,v)) for k,v in kwargs.items()) if len(kwargs) else '')
     return __Template_main.format(function.lower(), function, options)
 
-def exe(filename, icon=None, hidden=None):
+def freeze(filename, icon=None, hidden=None):
     """ 
-    Compile the Python stager file into a standalone executable
-    with a built-in Python interpreter
+    Compile a Python file into a standalone executable
+    binary with a built-in Python interpreter
 
     `Required`
     :param str icon:        icon image filename
@@ -188,7 +188,7 @@ def exe(filename, icon=None, hidden=None):
     process = subprocess.Popen('{} -m PyInstaller {}'.format(sys.executable, fspec), 0, None, subprocess.PIPE, subprocess.PIPE, subprocess.PIPE, shell=True)
     while True:
         try:
-            line = process.stdout.readline().rstrip()
+            line = process.stderr.readline().rstrip()
         except: break
         if line: util.display(line, color='reset', style='dim')
         if 'EXE' in line and 'complete' in line: break
@@ -227,3 +227,4 @@ def app(filename, icon=None):
         fw.write(infoPlist)
     os.rename(filename, os.path.join(distPath, baseName))
     return appPath
+

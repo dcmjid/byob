@@ -1,3 +1,4 @@
+![logo](http://malwared.com/wp-content/uploads/2018/08/circuitboard_reverse_350px-300x300.png)
 # BYOB (Build Your Own Botnet)
 [![license](https://img.shields.io/badge/license-GPL-brightgreen.svg)](https://github.com/colental/byob/blob/master/LICENSE)
 [![version](https://img.shields.io/badge/version-0.1.5-lightgrey.svg)](https://github.com/colental/byob)
@@ -8,9 +9,14 @@ BYOB is an open-source project that provides a framework for security researcher
 and developers to build and operate a basic botnet to deepen their understanding
 of the sophisticated malware that infects millions of devices every year and spawns
 modern botnets, in order to improve their ability to develop counter-measures against 
-these threats.
+these threats. 
 
-The library contains 4 main parts:
+It is designed to allow developers to easily implement their own code and add cool new
+features *without* having to write a **RAT** (Remote Administration Tool) or a
+**C2** (Command & Control server) from scratch.
+
+*The RAT's key feature is that arbitrary code/files can be remotely loaded into memory
+from the C2 and executed on the target machine without writing anything to the disk.*
 
 ## Server
 [![server](https://img.shields.io/badge/byob-server-blue.svg)](https://github.com/colental/byob/blob/master/byob/server.py)
@@ -112,3 +118,23 @@ in the payload stager which is generated along with it
 6) __Stagers__ (`byob.core.stagers`): generate unique payload stagers to prevent analysis & detection   
 7) __Generators__ (`byob.core.generators`): functions which all dynamically generate code for the client generator
 8) __Database__ (`byob.core.database`): handles interaction between command & control server and the SQLite database
+
+
+### To Do
+
+*Contributors welcome! Feel free to issue pull-requests with any new features or improvements you have come up with!*
+
+1) __Remote Import Encryption__ - encryption for data streams of packages/modules being remotely imported (to maintain confidentiality/authenticity/integrity and prevent any remote code execution vulnerabilities arising from deserialization)
+2) __Transport Types__ - add support for more transport types (HTTP/S, DNS, etc.)
+3) __Improve Phone/SMS module__ - add spreading ability via emails/text-messages when a contacts list is found on the target host
+4) __Improve Outlook/Email module__ - add spreading ability via emails/text-messages when a contacts list is found on the target host
+5) __Improve Ransom module__ - add methods for using a Bitcoin exchange API for generating temporary wallet addresses that are unique to the target host, expire after a given number of hours without receiving payment, and which notify the C2 server (maybe via webhooks?) when payment is received or the wallet expires
+6) __BUG FIXES__ - fix any bugs/issues
+
+### Contact
+
+__Website__: https://malwared.com
+
+__Email__: security@malwared.com
+
+__Twitter__: [![twitter](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/malwaredllc)

